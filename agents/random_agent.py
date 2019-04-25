@@ -31,8 +31,10 @@ def evaluate(environment, nb_episodes=20):
     plt.xlabel('episodes')
     plt.ylabel('rewards')
     plt.show()
+    return mean_reward
 
 
 if __name__ == '__main__':
     env = gym.make("CartPole-v1")
-    evaluate(env)
+    mean_reward = evaluate(env)
+    print("Mean reward per episode: " + str(mean_reward))

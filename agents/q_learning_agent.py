@@ -136,12 +136,14 @@ def evaluate(environment, q_table, granularity, nb_episodes=20):
     plt.xlabel('episodes')
     plt.ylabel('rewards')
     plt.show()
+    return mean_reward
 
 
 if __name__ == '__main__':
     env = gym.make("CartPole-v1")
     granularity = 16  # will condition how we discretize the continuous variables
-    save_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "save")
+    save_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               "..", "save", "q_learning")
     if not os.path.isdir(save_folder):
         os.makedirs(save_folder)
     q_table_npy_file = os.path.join(save_folder, "q_table_{}.npy".format(granularity))
@@ -162,4 +164,5 @@ if __name__ == '__main__':
     q_table = load_q_table(q_table_npy_file)
 
     # Evaluation of the q_learning policy
-    evaluate(env, q_table, granularity)
+    mean_reward = evaluate(env, q_table, granularity)
+    print("Mean reward per episode: " + str(mean_reward))

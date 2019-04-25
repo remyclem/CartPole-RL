@@ -1,13 +1,8 @@
 # coding: utf-8
 
-import matplotlib
 import matplotlib.pyplot as plt
 import gym
 import numpy as np
-import bisect
-import math
-import os
-import random
 
 
 def human_decision(angle):

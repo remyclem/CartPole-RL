@@ -43,10 +43,11 @@ def train_q_table(environment,
                   save_folder,
                   granularity=16,
                   nb_training_episodes=5000,
-                  learning_rate=0.2,
-                  discount_rate=1,
+                  learning_rate=0.4,
+                  discount_rate=1,  # deterministic environment
                   epsilon_exploration=0.5,
                   exploration_decay_rate=0.999,
+                  min_exploration_rate=0.01,
                   target_nb_moves=500):
 
     nb_columns = environment.action_space.n
@@ -62,7 +63,7 @@ def train_q_table(environment,
         step = 0
         done = False
         episode_score, reward = 0, 0
-        obs = environment.reset()
+        obs = env.reset()
         while not done:
             row_index = obs_2_row_index(obs, granularity)
             if random.uniform(0, 1) > epsilon_exploration:
@@ -70,21 +71,22 @@ def train_q_table(environment,
             else:
                 action = np.random.randint(0, 2)
             col_index = action
-            new_obs, reward, done, info = environment.step(action)
+            new_obs, reward, done, info = env.step(action)
             episode_score += reward
             if done:
                 reward = step - target_nb_moves
             new_row_index = obs_2_row_index(new_obs, granularity)
             q_table[row_index, col_index] += learning_rate \
-                                             * (reward + discount_rate * np.max(q_table[new_row_index]) - q_table[row_index, col_index])
+                                       * (reward + discount_rate * np.max(q_table[new_row_index]) - q_table[row_index, col_index])
             nb_times_visited[row_index, col_index] += 1
+
             obs = new_obs
             step += 1
 
-        episode_scores_record.append(episode_score)
+        episode_scores_record.append(step)
         if episode % 50 == 0:
-            print('Episode {} - score: {}'.format(episode, episode_score))
-        epsilon_exploration = epsilon_exploration * exploration_decay_rate
+            print('Episode {} - score: {}'.format(episode, step))
+        epsilon_exploration = max(min_exploration_rate, epsilon_exploration * exploration_decay_rate)  # TODO: min explo rate
 
     # training summary
     plt.plot(episode_scores_record)
@@ -153,6 +155,7 @@ if __name__ == '__main__':
                   discount_rate=1,
                   epsilon_exploration=0.5,
                   exploration_decay_rate=0.999,
+                  min_exploration_rate=0.01,
                   target_nb_moves=500)
 
     # Loading the saved q_table

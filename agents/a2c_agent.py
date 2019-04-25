@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 tf.logging.set_verbosity(tf.logging.WARN)  # Remove Info logs
 
+# A2C stands for Advantage Actor Critic
 
 def discount_rewards(rewards, discount_rate):
     discounted_rewards = np.zeros(len(rewards))
@@ -27,18 +28,16 @@ def discount_and_normalize_rewards(all_rewards, discount_rate):
 
 def train_policy_gradient_reinforced_neural_network(environment,
                                                     save_folder,
-                                                    nb_training_sessions=1000,
-                                                    nb_episodes_per_training_session=10,
-                                                    save_iterations=10,
-                                                    discount_rate=0.95):
+                                                    nb_training_episode=2000):
     tf.reset_default_graph()
 
-    nb_neurons_input = environment.observation_space.shape[0]
+    nb_neurons_input = 4  # len(obs)
     nb_neurons_hidden_layer = 4
     nb_neurons_output = 1
     learning_rate = 0.01
 
     X = tf.placeholder(tf.float32, shape=[None, nb_neurons_input], name="X")
+    y = tf.placeholder(tf.float32, shape=[None, nb_neurons_output], name="y")
 
     with tf.name_scope("dnn"):
         initializer_w = tf.contrib.layers.xavier_initializer()
@@ -71,6 +70,10 @@ def train_policy_gradient_reinforced_neural_network(environment,
     init = tf.global_variables_initializer()
     saver = tf.train.Saver()
 
+    nb_training_sessions = 1000
+    nb_episodes_per_training_session = 10
+    save_iterations = 10
+    discount_rate = 0.95
     tf_log_file = os.path.join(save_folder, "policy_gradient_reinforced_neural_net.ckpt")
 
     config = tf.ConfigProto()

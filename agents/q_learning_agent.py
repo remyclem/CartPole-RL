@@ -65,12 +65,10 @@ def train_q_table(environment,
         obs = environment.reset()
         while not done:
             row_index = obs_2_row_index(obs, granularity)
-
             if random.uniform(0, 1) > epsilon_exploration:
                 action = np.argmax(q_table[row_index])
             else:
                 action = np.random.randint(0, 2)
-
             col_index = action
             new_obs, reward, done, info = environment.step(action)
             episode_score += reward
@@ -78,12 +76,12 @@ def train_q_table(environment,
                 reward = step - target_nb_moves
             new_row_index = obs_2_row_index(new_obs, granularity)
             q_table[row_index, col_index] += learning_rate \
-                                       * (reward + discount_rate * np.max(q_table[new_row_index]) - q_table[row_index, col_index])
+                                             * (reward + discount_rate * np.max(q_table[new_row_index]) - q_table[row_index, col_index])
             nb_times_visited[row_index, col_index] += 1
             obs = new_obs
             step += 1
 
-            episode_scores_record.append(episode_score)
+        episode_scores_record.append(episode_score)
         if episode % 50 == 0:
             print('Episode {} - score: {}'.format(episode, episode_score))
         epsilon_exploration = epsilon_exploration * exploration_decay_rate
@@ -118,11 +116,11 @@ def run_episode_q_learning(environment, q_table, granularity=16, show_renderer=F
     return final_score
 
 def load_q_table(q_table_npy_file):
-    if not os.path.isfile(q_table_npy_file):
-        print("file *{}* not found!!".format(q_table_npy_file))
-    else:
+    try:
         q_table = np.load(q_table_npy_file)
-    return q_table
+        return q_table
+    except FileNotFoundError:
+        print("file *{}* not found!!".format(q_table_npy_file))
 
 def evaluate(environment, q_table, granularity, nb_episodes=20):
     scores = []
@@ -139,10 +137,9 @@ def evaluate(environment, q_table, granularity, nb_episodes=20):
 
 
 if __name__ == '__main__':
-
     env = gym.make("CartPole-v1")
     granularity = 16  # will condition how we discretize the continuous variables
-    save_folder = os.path.join("..", "save")
+    save_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "save")
     if not os.path.isdir(save_folder):
         os.makedirs(save_folder)
     q_table_npy_file = os.path.join(save_folder, "q_table_{}.npy".format(granularity))

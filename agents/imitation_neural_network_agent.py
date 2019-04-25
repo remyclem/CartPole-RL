@@ -16,7 +16,7 @@ def train_imitation_neural_network(environment,
                                    nb_training_episode=2000):
     tf.reset_default_graph()
 
-    nb_neurons_input = 4  # len(obs)
+    nb_neurons_input = environment.observation_space.shape[0]
     nb_neurons_hidden_layer = 4
     nb_neurons_output = 1
     learning_rate = 0.01

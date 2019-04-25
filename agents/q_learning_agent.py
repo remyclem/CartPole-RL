@@ -40,6 +40,7 @@ def obs_2_row_index(obs,
     return row_index
 
 def train_q_table(environment,
+                  save_folder,
                   granularity=16,
                   nb_training_episodes=5000,
                   learning_rate=0.2,
@@ -49,30 +50,29 @@ def train_q_table(environment,
                   target_nb_moves=500):
 
     nb_columns = environment.action_space.n
-    nb_rows = pow(granularity, 4)  # 4 because the obs is a vector of 4 information  # TODO
+    observation_space_dimension = environment.observation_space.shape[0]  # Here the obs is a vector of 4 dimension
+    nb_rows = pow(granularity, observation_space_dimension)
 
     q_table = np.zeros([nb_rows, nb_columns])  # our table of Q values
     print("The Q-table is of shape:" + str(q_table.shape))
-
     nb_times_visited = np.zeros([nb_rows, nb_columns])
 
-    accumulated_scores_records = []
-
+    episode_scores_record = []  # Serves to follow how well the agent learns
     for episode in range(0, nb_training_episodes):
         step = 0
         done = False
         episode_score, reward = 0, 0
-        obs = env.reset()
+        obs = environment.reset()
         while not done:
             row_index = obs_2_row_index(obs, granularity)
 
             if random.uniform(0, 1) > epsilon_exploration:
-                action = np.argmax(Q[row_index])
+                action = np.argmax(q_table[row_index])
             else:
                 action = np.random.randint(0, 2)
 
             col_index = action
-            new_obs, reward, done, info = env.step(action)
+            new_obs, reward, done, info = environment.step(action)
             episode_score += reward
             if done:
                 reward = step - target_nb_moves
@@ -80,31 +80,25 @@ def train_q_table(environment,
             q_table[row_index, col_index] += learning_rate \
                                        * (reward + discount_rate * np.max(q_table[new_row_index]) - q_table[row_index, col_index])
             nb_times_visited[row_index, col_index] += 1
-
             obs = new_obs
             step += 1
 
-        accumulated_scores_records.append(episode_score)
+            episode_scores_record.append(episode_score)
         if episode % 50 == 0:
             print('Episode {} - score: {}'.format(episode, episode_score))
         epsilon_exploration = epsilon_exploration * exploration_decay_rate
 
     # training summary
-    plt.plot(accumulated_scores_records)
+    plt.plot(episode_scores_record)
     plt.xlabel('episodes')
     plt.ylabel('rewards')
     plt.show()
 
     # save table
-    save_folder = os.path.join(".", "save")
-    if not os.path.isdir(save_folder):
-        os.makedirs(save_folder)
     q_table_save_file = os.path.join(save_folder, "q_table_{}.npy".format(granularity))
     np.save(q_table_save_file, q_table)
-
     q_table_csv_save_file = os.path.join(save_folder, "q_table_{}.csv".format(granularity))
     np.savetxt(q_table_csv_save_file, q_table, delimiter=";")
-
     nb_times_visited_csv_save_file = os.path.join(save_folder, "nb_times_visited_{}.csv".format(granularity))
     np.savetxt(nb_times_visited_csv_save_file, nb_times_visited, delimiter=";")
 
@@ -148,9 +142,21 @@ if __name__ == '__main__':
 
     env = gym.make("CartPole-v1")
     granularity = 16  # will condition how we discretize the continuous variables
-    q_table_npy_file = os.path.join("..", "save", "q_table_{}.npy".format(granularity))
+    save_folder = os.path.join("..", "save")
+    if not os.path.isdir(save_folder):
+        os.makedirs(save_folder)
+    q_table_npy_file = os.path.join(save_folder, "q_table_{}.npy".format(granularity))
 
     # Training
+    train_q_table(env,
+                  save_folder,
+                  granularity=16,
+                  nb_training_episodes=5000,
+                  learning_rate=0.2,
+                  discount_rate=1,
+                  epsilon_exploration=0.5,
+                  exploration_decay_rate=0.999,
+                  target_nb_moves=500)
 
     # Loading the saved q_table
     q_table = load_q_table(q_table_npy_file)

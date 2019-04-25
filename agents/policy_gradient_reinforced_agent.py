@@ -23,7 +23,15 @@ def discount_and_normalize_rewards(all_rewards, discount_rate):
     flat_rewards = np.concatenate(all_discounted_rewards)
     reward_mean = flat_rewards.mean()
     reward_std = flat_rewards.std()
-    return [(discounted_rewards - reward_mean) / reward_std for discounted_rewards in all_discounted_rewards]
+
+    ####
+    if reward_std != 0:
+        return [(discounted_rewards - reward_mean) / reward_std for discounted_rewards in all_discounted_rewards]
+    else:
+        return [discounted_rewards for discounted_rewards in all_discounted_rewards]
+    ####
+
+
 
 def train_policy_gradient_reinforced_neural_network(environment,
                                                     save_folder,
@@ -85,16 +93,29 @@ def train_policy_gradient_reinforced_neural_network(environment,
                 current_gradients = []
                 obs = env.reset()
                 done = False
+                step = 0
                 while not done:
                     action_val, gradients_val = sess.run([tentative_action, gradients],
                                                          feed_dict={X: obs.reshape(1, nb_neurons_input)})
                     obs, reward, done, info = env.step(action_val[0][0])
+
+
+                    ####
+                    if done and step < 499:
+                        reward = -1
+                    else:
+                        reward = 0
+                    ####
+
+                    step += 1
                     current_rewards.append(reward)
                     current_gradients.append(gradients_val)
                 all_rewards.append(current_rewards)
                 all_gradients.append(current_gradients)
+                print("End of episode: " + str(step))
 
             all_rewards = discount_and_normalize_rewards(all_rewards, discount_rate=discount_rate)
+
             feed_dict = {}
             for var_index, gradient_placeholder in enumerate(gradient_placeholders):
                 mean_gradients = np.mean([reward * all_gradients[game_index][step][var_index]

@@ -62,7 +62,7 @@ def train_q_table(environment,
     for episode in range(0, nb_training_episodes):
         step = 0
         done = False
-        episode_score, reward = 0, 0
+        episode_score = 0
         obs = env.reset()
         while not done:
             row_index = obs_2_row_index(obs, granularity)
@@ -124,10 +124,10 @@ def load_q_table(q_table_npy_file):
     except FileNotFoundError:
         print("file *{}* not found!!".format(q_table_npy_file))
 
-def evaluate(environment, q_table, granularity, nb_episodes=20):
+def evaluate(environment, q_table, granularity, nb_episodes=20, show_renderer=True):
     scores = []
     for i in range(0, nb_episodes):
-        episode_score = run_episode_q_learning(environment, q_table, granularity, True)
+        episode_score = run_episode_q_learning(environment, q_table, granularity, show_renderer)
         scores.append(episode_score)
 
     mean_reward = np.mean(scores)

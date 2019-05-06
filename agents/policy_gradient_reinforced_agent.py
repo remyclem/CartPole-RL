@@ -98,15 +98,10 @@ def train_policy_gradient_reinforced_neural_network(environment,
                     action_val, gradients_val = sess.run([tentative_action, gradients],
                                                          feed_dict={X: obs.reshape(1, nb_neurons_input)})
                     obs, reward, done, info = env.step(action_val[0][0])
-
-
-                    ####
                     if done and step < 499:
                         reward = -1
                     else:
                         reward = 0
-                    ####
-
                     step += 1
                     current_rewards.append(reward)
                     current_gradients.append(gradients_val)
@@ -160,10 +155,10 @@ def run_episode_policy_gradient_reinforced_neural_network(environment,
     environment.close()
     return final_score
 
-def evaluate(environment, save_folder, nb_episodes=20):
+def evaluate(environment, save_folder, nb_episodes=20, show_renderer=True):
     scores = []
     for i in range(0, nb_episodes):
-        episode_score = run_episode_policy_gradient_reinforced_neural_network(environment, save_folder, True)
+        episode_score = run_episode_policy_gradient_reinforced_neural_network(environment, save_folder, False)
         scores.append(episode_score)
 
     mean_reward = np.mean(scores)

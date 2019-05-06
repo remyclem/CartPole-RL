@@ -2,3 +2,4 @@
 - Rework the architecture, in particular move many functions to .py files, and have an "Agent" class
 - Policy gradient should start from the human crafted imitation neural net
 - Add tensorboard
+- pretty doc

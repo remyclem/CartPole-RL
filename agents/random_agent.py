@@ -19,10 +19,10 @@ def run_episode_random_agent(environment, show_renderer=False):
     environment.close()
     return final_score
 
-def evaluate(environment, nb_episodes=20):
+def evaluate(environment, nb_episodes=20, show_renderer=True):
     scores = []
     for i in range(0, nb_episodes):
-        episode_score = run_episode_random_agent(environment, True)
+        episode_score = run_episode_random_agent(environment, show_renderer)
         scores.append(episode_score)
 
     mean_reward = np.mean(scores)

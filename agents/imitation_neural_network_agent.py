@@ -55,7 +55,7 @@ def train_imitation_neural_network(environment,
             obs = environment.reset()
             while not done:
                 position, velocity, angle, angular_velocity = obs
-                obs_pretty = obs.reshape(1, nb_neurons_input)
+                obs_pretty = obs.reshape(1,  obs.shape[0])
                 target_action = human_decision(angle)
                 target_action = np.array([target_action]).reshape(1, 1)
                 action_val, _ = sess.run([estimated_action, training_op], feed_dict={X: obs_pretty, y: target_action})
@@ -96,10 +96,10 @@ def run_episode_imitation_neural_network(environment,
     environment.close()
     return final_score
 
-def evaluate(environment, save_folder, nb_episodes=20):
+def evaluate(environment, save_folder, nb_episodes=20, show_renderer=True):
     scores = []
     for i in range(0, nb_episodes):
-        episode_score = run_episode_imitation_neural_network(environment, save_folder, True)
+        episode_score = run_episode_imitation_neural_network(environment, save_folder, False)
         scores.append(episode_score)
 
     mean_reward = np.mean(scores)

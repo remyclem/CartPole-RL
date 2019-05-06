@@ -4,17 +4,21 @@ import matplotlib.pyplot as plt
 import gym
 import numpy as np
 import os
+import shutil
 import tensorflow as tf
 import tempfile
-
+from random import randint
 tf.logging.set_verbosity(tf.logging.WARN)  # Remove Info logs
 
-NUMBER_OF_COMPETING_AGENTS = 10
-SURVIVAL_REQUIREMENT = 3  # only the 3 best will survive to the next stage
-NUMBER_SELECTION_ROUNDS = 3
+NUMBER_OF_COMPETING_AGENTS = 20
+SURVIVAL_REQUIREMENT = 5  # only the SURVIVAL_REQUIREMENT best will survive to the next stage
+NUMBER_SELECTION_ROUNDS = 5
 
 class Competitor:
-    def __init__(self, id, environment):
+    competitor_index = 0
+    def __init__(self, environment):
+        id = Competitor.competitor_index
+        Competitor.competitor_index += 1
         tmp_folder = tempfile.gettempdir()
         competitor_folder = os.path.join(tmp_folder, "cartpole_arena", "competitor_" + str(id))
         if not os.path.isdir(competitor_folder):
@@ -24,43 +28,90 @@ class Competitor:
         self.tmp_folder = competitor_folder
         self.env = environment
     def go_to_valhalla(self):
+        print("goodbye " +str(self.id))
         if os.path.isdir(self.tmp_folder):
             if (self.tmp_folder).startswith(tempfile.gettempdir()):  # better safe than sorry
-                os.rmdir(self.tmp_folder)
+                shutil.rmtree(self.tmp_folder)
+    def get_id(self):
+        return self.id
+    def get_tmp_folder(self):
+        return self.tmp_folder
+    def get_env(self):
+        return self.env
 
 def rank_competitors(competitors):
+    scores = []
+    for competitor in competitors:  # TODO: a paralleliser
+        mean_reward = evaluate(competitor.get_env(), competitor.get_tmp_folder(), nb_episodes=50,
+                               show_renderer=False, show_plot=False)
+        scores.append(mean_reward)
+        print("competitor " + str(competitor.get_id()) + " - " + str(mean_reward))
 
-    for competitor in competitors:
-        mean_reward = evaluate(competitor.env, competitor.tmp_folder, nb_episodes=20, show_renderer=False)
-        print("competitor " + str(competitor) + " - " + str(mean_reward))
+    sort_index = np.argsort(scores)  # The list is ordered from the worst to the best
+    sort_index = np.flip(sort_index)
+    ranked_competitors = competitors[sort_index]
+    return ranked_competitors
 
-    survivor_ids = None
-    return survivor_ids
+def mutate_competitor(competitor_to_mutate, learning_rate=0.1):
+    environment = competitor_to_mutate.get_env()
+    new_competitor = Competitor(environment)
 
-def mutate_competitor(competitor_id):
-    pass
+    # TODO: load weights of competitor_to_mutate and mutate them
+    # have a learning rate that varies with the selection round
+    # comme pour le recuit simulé ? D'abord beaucoup, puis moins, puis beaucoup, de manière cyclique ?
+    ####################################
+    # initialize random weights
+    # curr_weights = []
+    # curr_bias = []
+    # # loop through each layer in the first network to get shapes
+    # for l in range(1, len(networks[0].model.layers)):
+    #     # get shapes of weight and bias layers
+    #     bias_shape = np.array(networks[0].model.layers[l].get_weights()[1]).shape
+    #     shape = np.array(networks[0].model.layers[l].get_weights()[0]).shape
+    #
+    #     # get the current weights of the first network as a baseline
+    #     # init biases to 0 is we're not adjusting them
+    #     N = networks[0].model.layers[l].get_weights()[0]
+    #     if APPLY_BIAS:
+    #         B = networks[0].model.layers[l].get_weights()[1]
+    #     else:
+    #         B = np.zeros(shape[1])
+    #
+    #     # add to containers
+    #     curr_weights.append(N)
+    # curr_bias.append(B)
+    ########################################
 
-def create_new_generation_of_competitors(survivor_ids):
-    # the SURVIVAL_REQUIREMENT competitors in survivor_ids are not changed
-    # 2 * SURVIVAL_REQUIREMENT are mutations of those in survivor_ids
-    # the rest is created at random
-    pass
+    return new_competitor
+
+def create_new_generation_of_competitors(ranked_competitors):
+    for index in range(SURVIVAL_REQUIREMENT, NUMBER_OF_COMPETING_AGENTS):
+        current_competitor = ranked_competitors[index]
+        current_competitor.go_to_valhalla()
+        random_index = randint(0, SURVIVAL_REQUIREMENT)
+        competitor_id_to_mutate = ranked_competitors[random_index]
+        new_competitor = mutate_competitor(competitor_id_to_mutate)
+        ranked_competitors[index] = new_competitor
+    return ranked_competitors
 
 def darwinian_selection(environment):
     assert SURVIVAL_REQUIREMENT < NUMBER_OF_COMPETING_AGENTS
 
     # Create seed agents (complete random)
     competitors = []
-    for competitor_id in range(0, NUMBER_OF_COMPETING_AGENTS):
-        new_competitor = Competitor(competitor_id, environment)
+    for i in range(0, NUMBER_OF_COMPETING_AGENTS):
+        new_competitor = Competitor(environment)
         competitors.append(new_competitor)
+        print("New competitor: " + str(new_competitor.get_id()))
+    competitors = np.array(competitors)
 
     for round in range(0, NUMBER_SELECTION_ROUNDS):
-        survivor_ids = rank_competitors(competitors)
-        create_new_generation_of_competitors(survivor_ids)
+        print("New round - " + str(round))
+        ranked_competitors = rank_competitors(competitors)
+        competitors = create_new_generation_of_competitors(ranked_competitors)
 
-    champ_folder = None
-    return champ_folder
+    champ = competitors[0]
+    return champ
 
 def train_random_neural_network(environment, save_folder):
     tf.reset_default_graph()
@@ -126,18 +177,21 @@ def run_episode_random_neural_network(environment,
     environment.close()
     return final_score
 
-def evaluate(environment, save_folder, nb_episodes=20, show_renderer=True):
+def evaluate(environment, save_folder, nb_episodes=20,
+             show_renderer=True,
+             show_plot=True):
     scores = []
     for i in range(0, nb_episodes):
         episode_score = run_episode_random_neural_network(environment, save_folder, show_renderer)
         scores.append(episode_score)
 
     mean_reward = np.mean(scores)
-    plt.plot(scores)
-    plt.title("Mean reward: {}".format(mean_reward))
-    plt.xlabel('episodes')
-    plt.ylabel('rewards')
-    plt.show()
+    if show_plot:
+        plt.plot(scores)
+        plt.title("Mean reward: {}".format(mean_reward))
+        plt.xlabel('episodes')
+        plt.ylabel('rewards')
+        plt.show()
     return mean_reward
 
 
@@ -150,13 +204,25 @@ if __name__ == '__main__':
         os.makedirs(save_folder)
 
     # Training
-    champ_folder = darwinian_selection(env)
+    champ = darwinian_selection(env)
 
     # save champ to the official save_folder
+    for file in os.listdir(champ.get_tmp_folder()):
+        shutil.copy(os.path.join(champ.get_tmp_folder(), file), save_folder)
+        print("PLIP " + file)
+        if file == "checkpoint":
+            print("PLOP")
+            with open(os.path.join(save_folder, file), 'w') as f:
+                new_checkpoint_file = os.path.join(save_folder, "random_neural_net.ckpt")
+                line_1 = 'model_checkpoint_path:  "{}"'.format(new_checkpoint_file)
+                line_2 = 'all_model_checkpoint_paths:  "{}"'.format(new_checkpoint_file)
+                print(line_1)
+                f.write(line_1)
+                f.write("\n")
+                f.write(line_2)
+
+    # Evaluation
+    mean_reward = evaluate(env, save_folder)
+    print("Mean reward per episode: " + str(mean_reward))
 
 
-
-    # Evaluation of the imitation neural network
-    # Hopefully it should perform as well as the human crafted policy
-    #mean_reward = evaluate(env, save_folder)
-    #print("Mean reward per episode: " + str(mean_reward))

@@ -1,5 +1,12 @@
 # coding: utf-8
 
+# Here i am not using the evolutionary strategy to find the best hyperparameters
+# for the neural net. Instead I consider my hyperparameters fixed and subsequently I
+# evolve the weights (considered as genes).
+#
+# See https://openai.com/blog/evolution-strategies/
+#
+# This works surprisingly well on this simple cartpole example.
 import matplotlib.pyplot as plt
 import gym
 import numpy as np
@@ -10,8 +17,8 @@ import tempfile
 from random import randint
 tf.logging.set_verbosity(tf.logging.WARN)  # Remove Info logs
 
-NUMBER_OF_COMPETING_AGENTS = 20
-SURVIVAL_REQUIREMENT = 5  # only the SURVIVAL_REQUIREMENT best will survive to the next stage
+NUMBER_OF_COMPETING_AGENTS = 30
+SURVIVAL_REQUIREMENT = 10  # only the SURVIVAL_REQUIREMENT best will survive to the next stage
 NUMBER_SELECTION_ROUNDS = 5
 
 class Competitor:
@@ -39,10 +46,10 @@ class Competitor:
     def get_env(self):
         return self.env
 
-def rank_competitors(competitors):
+def rank_competitors(competitors, nb_episodes=50):
     scores = []
-    for competitor in competitors:  # TODO: a paralleliser
-        mean_reward = evaluate(competitor.get_env(), competitor.get_tmp_folder(), nb_episodes=50,
+    for competitor in competitors:  # TODO: parallelize this
+        mean_reward = evaluate(competitor.get_env(), competitor.get_tmp_folder(), nb_episodes=nb_episodes,
                                show_renderer=False, show_plot=False)
         scores.append(mean_reward)
         print("competitor " + str(competitor.get_id()) + " - " + str(mean_reward))
@@ -52,45 +59,44 @@ def rank_competitors(competitors):
     ranked_competitors = competitors[sort_index]
     return ranked_competitors
 
-def mutate_competitor(competitor_to_mutate, learning_rate=0.1):
+def add_random_noise(weights, evolution_temperature, mean=0.0, stddev=1.0):
+    variables_shape = tf.shape(weights)
+    noise = tf.random_normal(
+        variables_shape,
+        mean=mean,
+        stddev=stddev,
+        dtype=tf.float32,
+    )
+    return tf.assign_add(weights, noise)
+
+def mutate_competitor(competitor_to_mutate, evolution_temperature=0.1):
+    print("mutating competitor " + str(competitor_to_mutate.get_id()))
     environment = competitor_to_mutate.get_env()
     new_competitor = Competitor(environment)
 
-    # TODO: load weights of competitor_to_mutate and mutate them
-    # have a learning rate that varies with the selection round
-    # comme pour le recuit simulé ? D'abord beaucoup, puis moins, puis beaucoup, de manière cyclique ?
-    ####################################
-    # initialize random weights
-    # curr_weights = []
-    # curr_bias = []
-    # # loop through each layer in the first network to get shapes
-    # for l in range(1, len(networks[0].model.layers)):
-    #     # get shapes of weight and bias layers
-    #     bias_shape = np.array(networks[0].model.layers[l].get_weights()[1]).shape
-    #     shape = np.array(networks[0].model.layers[l].get_weights()[0]).shape
-    #
-    #     # get the current weights of the first network as a baseline
-    #     # init biases to 0 is we're not adjusting them
-    #     N = networks[0].model.layers[l].get_weights()[0]
-    #     if APPLY_BIAS:
-    #         B = networks[0].model.layers[l].get_weights()[1]
-    #     else:
-    #         B = np.zeros(shape[1])
-    #
-    #     # add to containers
-    #     curr_weights.append(N)
-    # curr_bias.append(B)
-    ########################################
+    tf.reset_default_graph()
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    with tf.Session() as sess:
+        saver = tf.train.import_meta_graph(os.path.join(competitor_to_mutate.get_tmp_folder(), "random_neural_net.ckpt.meta"))
+        saver.restore(sess, tf.train.latest_checkpoint(save_folder))
+        w_hidden = tf.get_default_graph().get_tensor_by_name("hidden/kernel:0")
+        #b_hidden = tf.get_default_graph().get_tensor_by_name("hidden/bias:0")
+        w_logits = tf.get_default_graph().get_tensor_by_name("logits/kernel:0")
+        #b_logits = tf.get_default_graph().get_tensor_by_name("logits/bias:0")
+        list_of_weights_to_noisyfy = [w_hidden, w_logits]
+        for w in list_of_weights_to_noisyfy:
+            sess.run(add_random_noise(w, evolution_temperature))
 
     return new_competitor
 
-def create_new_generation_of_competitors(ranked_competitors):
+def create_new_generation_of_competitors(ranked_competitors, evolution_temperature=0.1):
     for index in range(SURVIVAL_REQUIREMENT, NUMBER_OF_COMPETING_AGENTS):
         current_competitor = ranked_competitors[index]
         current_competitor.go_to_valhalla()
-        random_index = randint(0, SURVIVAL_REQUIREMENT)
+        random_index = randint(0, SURVIVAL_REQUIREMENT - 1)
         competitor_id_to_mutate = ranked_competitors[random_index]
-        new_competitor = mutate_competitor(competitor_id_to_mutate)
+        new_competitor = mutate_competitor(competitor_id_to_mutate, evolution_temperature)
         ranked_competitors[index] = new_competitor
     return ranked_competitors
 
@@ -105,10 +111,14 @@ def darwinian_selection(environment):
         print("New competitor: " + str(new_competitor.get_id()))
     competitors = np.array(competitors)
 
+    nb_episodes_eval_max = 100
+    evolution_temperature = 0.1
     for round in range(0, NUMBER_SELECTION_ROUNDS):
-        print("New round - " + str(round))
-        ranked_competitors = rank_competitors(competitors)
-        competitors = create_new_generation_of_competitors(ranked_competitors)
+        print("### New round - " + str(round))
+        nb_episodes_eval = int(nb_episodes_eval_max * (round + 1) / NUMBER_SELECTION_ROUNDS + 20)
+        ranked_competitors = rank_competitors(competitors, nb_episodes_eval)
+        if round < NUMBER_SELECTION_ROUNDS - 1:
+            competitors = create_new_generation_of_competitors(ranked_competitors, evolution_temperature)
 
     champ = competitors[0]
     return champ
@@ -149,7 +159,6 @@ def run_episode_random_neural_network(environment,
                                       save_folder,
                                       show_renderer=False):
     tf.reset_default_graph()
-
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session() as sess:
@@ -209,9 +218,7 @@ if __name__ == '__main__':
     # save champ to the official save_folder
     for file in os.listdir(champ.get_tmp_folder()):
         shutil.copy(os.path.join(champ.get_tmp_folder(), file), save_folder)
-        print("PLIP " + file)
         if file == "checkpoint":
-            print("PLOP")
             with open(os.path.join(save_folder, file), 'w') as f:
                 new_checkpoint_file = os.path.join(save_folder, "random_neural_net.ckpt")
                 line_1 = 'model_checkpoint_path:  "{}"'.format(new_checkpoint_file)

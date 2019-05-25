@@ -24,14 +24,10 @@ def discount_and_normalize_rewards(all_rewards, discount_rate):
     reward_mean = flat_rewards.mean()
     reward_std = flat_rewards.std()
 
-    ####
     if reward_std != 0:
         return [(discounted_rewards - reward_mean) / reward_std for discounted_rewards in all_discounted_rewards]
     else:
         return [discounted_rewards for discounted_rewards in all_discounted_rewards]
-    ####
-
-
 
 def train_policy_gradient_reinforced_neural_network(environment,
                                                     save_folder,

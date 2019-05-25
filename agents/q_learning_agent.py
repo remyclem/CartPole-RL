@@ -86,7 +86,7 @@ def train_q_table(environment,
         episode_scores_record.append(step)
         if episode % 50 == 0:
             print('Episode {} - score: {}'.format(episode, step))
-        epsilon_exploration = max(min_exploration_rate, epsilon_exploration * exploration_decay_rate)  # TODO: min explo rate
+        epsilon_exploration = max(min_exploration_rate, epsilon_exploration * exploration_decay_rate)
 
     # training summary
     plt.plot(episode_scores_record)
